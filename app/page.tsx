@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { products } from "@/lib/data"; 
 import ProductCard from "@/components/ProductCard";
+import ReviewSection from "@/components/ReviewSection"; // <-- Imported the new reviews component
 
 export default function Home() {
   return (
@@ -59,6 +60,11 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* ================================== */}
+      {/* NEW: REVIEWS SECTION                 */}
+      {/* ================================== */}
+      <ReviewSection />
 
     </div>
   );

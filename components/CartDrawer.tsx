@@ -11,7 +11,7 @@ export default function CartDrawer() {
   if (!isCartOpen) return null;
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  
+
   // Smart suggestions: products not already in the cart
   const cartSlugs = cart.map((item) => item.slug);
   const suggestedProducts = products.filter((p) => !cartSlugs.includes(p.slug)).slice(0, 3);
@@ -19,14 +19,14 @@ export default function CartDrawer() {
   return (
     <>
       {/* Background Overlay */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/40 z-[100] backdrop-blur-sm transition-opacity"
         onClick={closeCart}
       />
 
       {/* Drawer */}
       <div className="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white z-[101] flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-bold tracking-widest uppercase flex items-center gap-2">
@@ -44,7 +44,7 @@ export default function CartDrawer() {
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
-          
+
           {/* Cart Items */}
           {cart.length === 0 ? (
             <div className="text-center py-10 text-gray-500 text-sm tracking-widest uppercase">
@@ -64,9 +64,25 @@ export default function CartDrawer() {
                     </div>
                     <div className="flex items-center gap-4 mt-2">
                       <div className="flex items-center border border-gray-300 bg-white w-fit">
-                        <button onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)} className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors">-</button>
-                        <span className="text-[10px] font-medium px-2 w-6 text-center border-x border-gray-100">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)} className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors">+</button>
+                        <button
+                          type="button"
+                          aria-label="Decrease quantity"
+                          onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)}
+                          className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="text-[10px] font-medium px-2 w-6 text-center border-x border-gray-100">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Increase quantity"
+                          onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)}
+                          className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -89,7 +105,7 @@ export default function CartDrawer() {
                   return (
                     <div key={suggestion.id} className="min-w-[140px] flex flex-col gap-2 snap-start">
                       <div className="relative w-full aspect-[4/5] bg-gray-50">
-                        <Image src={variant.image} alt={suggestion.name} fill className="object-cover" />
+                        <Image src={variant.image} alt={suggestion.name} fill sizes="80px" className="object-cover" />
                         <span className="absolute top-0 left-0 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 uppercase">{discount}% OFF</span>
                       </div>
                       <h4 className="text-[10px] font-bold tracking-widest uppercase truncate">{suggestion.name}</h4>
@@ -97,7 +113,7 @@ export default function CartDrawer() {
                         <p className="text-[10px] font-bold">₹{variant.price}</p>
                         <p className="text-[9px] text-gray-400 line-through">₹{variant.originalPrice}</p>
                       </div>
-                      <button 
+                      <button
                         onClick={() => addToCart(suggestion, variant)}
                         className="w-full bg-black text-white py-1.5 text-[9px] tracking-widest uppercase hover:bg-gray-800 transition-colors"
                       >
@@ -118,8 +134,8 @@ export default function CartDrawer() {
             <span className="text-xs font-semibold tracking-widest uppercase text-gray-500">Total Price</span>
             <span className="text-xl font-bold">₹{subtotal}</span>
           </div>
-          <Link 
-            href="/checkout" 
+          <Link
+            href="/checkout"
             onClick={closeCart}
             className="block w-full bg-red-600 text-white text-center py-4 text-xs font-bold tracking-[0.15em] uppercase hover:bg-red-700 transition-colors"
           >

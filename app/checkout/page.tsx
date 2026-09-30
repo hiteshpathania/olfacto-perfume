@@ -6,9 +6,27 @@ import Link from "next/link";
 import { useCart } from "@/lib/CartContext";
 import { products } from "@/lib/data";
 
+// ==========================================
+// RAZORPAY SCRIPT LOADER
+// ==========================================
+const loadScript = (src: string) => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function CheckoutPage() {
   const { cart, removeFromCart, updateQuantity } = useCart();
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // ==========================================
+  // PAYMENT METHOD STATE
+  // ==========================================
+  const [paymentMethod, setPaymentMethod] = useState("Cash on Delivery");
 
   // ==========================================
   // COUPON SYSTEM CONFIGURATION
@@ -26,7 +44,7 @@ export default function CheckoutPage() {
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     const code = couponCode.trim().toUpperCase();
-    
+
     if (VALID_COUPONS[code]) {
       setAppliedDiscountPercent(VALID_COUPONS[code]);
       setCouponStatus({ type: "success", text: `'${code}' APPLIED (-${VALID_COUPONS[code]}%)` });
@@ -41,7 +59,7 @@ export default function CheckoutPage() {
   // ==========================================
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const discountAmount = Math.round((subtotal * appliedDiscountPercent) / 100);
-  const shipping = 0; 
+  const shipping = 0;
   const total = subtotal - discountAmount + shipping;
 
   // ==========================================
@@ -54,35 +72,85 @@ export default function CheckoutPage() {
 
     // 1. ADD YOUR WEB3FORMS KEY HERE
     formData.append("access_key", "1afbc8b0-4673-4df5-ab6f-641faf8d6fdc");
-    formData.append("subject", "🚨 NEW COD ORDER - OLFACTO PERFUME");
     formData.append("from_name", "Olfacto Checkout");
 
     // 2. FORMAT THE CART ITEMS FOR THE EMAIL
-    const orderSummary = cart.map(item => 
+    const orderSummary = cart.map(item =>
       `${item.quantity}x ${item.name} (${item.size}) - ₹${item.price * item.quantity}`
     ).join('\n');
-    
+
     formData.append("Order_Items", orderSummary);
     formData.append("Total_Amount", `₹${total}`);
     if (appliedDiscountPercent > 0) {
       formData.append("Discount_Applied", `${appliedDiscountPercent}% OFF`);
     }
 
-    // 3. SEND TO YOUR GMAIL
-    try {
-      await fetch("https://api.web3forms.com/submit", {
-        method: "POST",
-        body: formData
-      });
-    } catch (error) {
-      console.error("Order failed to send", error);
-    }
+    // ==========================================
+    // PREPAID LOGIC (RAZORPAY)
+    // ==========================================
+    if (paymentMethod === "Prepaid") {
+      const res = await loadScript("https://checkout.razorpay.com/v1/checkout.js");
+      if (!res) {
+        alert("Payment gateway failed to load. Are you offline?");
+        return;
+      }
 
-    // 4. SHOW SUCCESS SCREEN
-    setIsSuccess(true);
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 4000);
+      // Fetch the Order ID from your backend
+      const orderResponse = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: total })
+      });
+      const orderData = await orderResponse.json();
+
+      // Configure Razorpay Window
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'YOUR_FUTURE_KEY_ID',
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "Olfacto Perfume",
+        description: "Signature Scent Order",
+        image: "/logo.png", // Your logo in the popup
+        order_id: orderData.id,
+        handler: async function (response: any) {
+          // THIS RUNS WHEN PAYMENT IS SUCCESSFUL
+          formData.append("subject", "✅ NEW PREPAID ORDER - OLFACTO PERFUME");
+          formData.append("Razorpay_Payment_ID", response.razorpay_payment_id);
+
+          await fetch("https://api.web3forms.com/submit", { method: "POST", body: formData });
+
+          setIsSuccess(true);
+          setTimeout(() => { window.location.href = "/"; }, 4000);
+        },
+        prefill: {
+          name: formData.get("First_Name") + " " + formData.get("Last_Name"),
+          email: formData.get("Customer_Email") as string,
+          contact: formData.get("Customer_Phone") as string,
+        },
+        theme: { color: "#000000" } // Matches your dark luxury theme
+      };
+
+      const paymentObject = new (window as any).Razorpay(options);
+      paymentObject.open();
+
+      // ==========================================
+      // CASH ON DELIVERY LOGIC
+      // ==========================================
+    } else {
+      formData.append("subject", "🚨 NEW COD ORDER - OLFACTO PERFUME");
+      try {
+        await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          body: formData
+        });
+      } catch (error) {
+        console.error("Order failed to send", error);
+      }
+      setIsSuccess(true);
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 4000);
+    }
   };
 
   if (cart.length === 0 && !isSuccess) {
@@ -94,8 +162,8 @@ export default function CheckoutPage() {
         <p className="text-gray-500 mb-8 text-center uppercase tracking-wider text-sm">
           The unseen accessory awaits.
         </p>
-        <Link 
-          href="/shop" 
+        <Link
+          href="/shop"
           className="bg-black text-white px-8 py-4 text-xs tracking-widest uppercase hover:bg-gray-800 transition-colors"
         >
           Return to Shop
@@ -107,13 +175,13 @@ export default function CheckoutPage() {
   return (
     <>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
-        
+
         <div className="mb-12">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight uppercase">Checkout</h1>
         </div>
 
         <div className="flex flex-col-reverse lg:flex-row gap-12 lg:gap-24">
-          
+
           {/* ========================================== */}
           {/* LEFT COLUMN: SHIPPING FORM                 */}
           {/* ========================================== */}
@@ -121,7 +189,7 @@ export default function CheckoutPage() {
             <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 border-b border-gray-200 pb-4">
               Shipping Information
             </h2>
-            
+
             <form id="checkout-form" onSubmit={handlePlaceOrder} className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
@@ -157,14 +225,20 @@ export default function CheckoutPage() {
               <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 border-b border-gray-200 pb-4 pt-8">
                 Payment Method
               </h2>
-              
-              <div className="flex items-center space-x-3 mb-8">
-                <input type="radio" id="cod" name="Payment_Method" value="Cash on Delivery" defaultChecked className="accent-black w-4 h-4" />
-                <label htmlFor="cod" className="text-sm tracking-wide uppercase">Cash on Delivery (Prepaid Coming Soon)</label>
+
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setPaymentMethod("Cash on Delivery")}>
+                  <input type="radio" id="cod" name="Payment_Method" value="Cash on Delivery" checked={paymentMethod === "Cash on Delivery"} onChange={() => setPaymentMethod("Cash on Delivery")} className="accent-black w-4 h-4 cursor-pointer" />
+                  <label htmlFor="cod" className="text-sm tracking-wide uppercase cursor-pointer">Cash on Delivery</label>
+                </div>
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setPaymentMethod("Prepaid")}>
+                  <input type="radio" id="prepaid" name="Payment_Method" value="Prepaid" checked={paymentMethod === "Prepaid"} onChange={() => setPaymentMethod("Prepaid")} className="accent-black w-4 h-4 cursor-pointer" />
+                  <label htmlFor="prepaid" className="text-sm tracking-wide uppercase cursor-pointer">Online Payment (Razorpay)</label>
+                </div>
               </div>
 
               {/* MOBILE ONLY: PLACE ORDER BUTTON */}
-              <button 
+              <button
                 type="submit"
                 className="w-full bg-black text-white py-5 text-sm tracking-widest uppercase hover:bg-gray-800 transition-colors mt-8 lg:hidden"
               >
@@ -181,47 +255,54 @@ export default function CheckoutPage() {
               <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 border-b border-gray-200 pb-4">
                 Order Summary
               </h2>
-              
+
               <div className="space-y-6 mb-8">
                 {cart.map((item, idx) => {
                   const productData = products.find((p) => p.slug === item.slug);
                   const variantData = productData?.variants.find((v) => v.size === item.size);
                   const originalPrice = variantData?.originalPrice || item.price;
-                  
+
                   return (
                     <div key={idx} className="flex items-start justify-between">
                       <div className="flex items-start gap-4">
-                        
+
                         <div className="relative w-16 h-20 bg-gray-200 shrink-0">
-                          <Image 
-                            src={item.image} 
-                            alt={item.name} 
-                            fill 
-                            className="object-cover" 
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            fill
+                            sizes="80px"
+                            className="object-cover"
                           />
                         </div>
 
                         <div>
                           <p className="text-sm font-semibold tracking-wide uppercase">{item.name}</p>
                           <p className="text-xs text-gray-500 tracking-wider uppercase mt-1">{item.size}</p>
-                          
+
                           <div className="flex items-center gap-4 mt-3">
                             <div className="flex items-center border border-gray-300 bg-white w-fit">
-                              <button 
+                              <button
+                                type="button"
+                                aria-label="Decrease quantity"
                                 onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)}
                                 className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors"
                               >
                                 -
                               </button>
-                              <span className="text-[10px] font-medium px-2 w-6 text-center border-x border-gray-100">{item.quantity}</span>
-                              <button 
+                              <span className="text-[10px] font-medium px-2 w-6 text-center border-x border-gray-100">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label="Increase quantity"
                                 onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)}
                                 className="px-2 py-0.5 text-gray-500 hover:text-black transition-colors"
                               >
                                 +
                               </button>
                             </div>
-                            <button 
+                            <button
                               onClick={() => removeFromCart(item.id, item.size)}
                               className="text-[9px] text-red-500 tracking-widest uppercase hover:text-black transition-colors underline"
                             >
@@ -230,7 +311,7 @@ export default function CheckoutPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="text-right">
                         <p className="text-sm font-medium">₹{item.price * item.quantity}</p>
                         {originalPrice > item.price && (
@@ -248,14 +329,14 @@ export default function CheckoutPage() {
               <div className="border-t border-gray-200 pt-6 mb-6">
                 <form onSubmit={handleApplyCoupon} className="flex flex-col gap-2">
                   <div className="flex w-full">
-                    <input 
-                      type="text" 
-                      placeholder="ENTER COUPON CODE" 
+                    <input
+                      type="text"
+                      placeholder="ENTER COUPON CODE"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value)}
                       className="flex-grow border border-gray-300 px-4 py-3 text-xs tracking-widest uppercase focus:outline-none focus:border-black transition-colors bg-white"
                     />
-                    <button 
+                    <button
                       type="submit"
                       className="bg-black text-white px-6 py-3 text-[10px] tracking-widest uppercase hover:bg-gray-800 transition-colors"
                     >
@@ -277,7 +358,7 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>₹{subtotal}</span>
                 </div>
-                
+
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-green-700 font-semibold">
                     <span className="uppercase tracking-widest">Discount ({appliedDiscountPercent}%)</span>
@@ -289,7 +370,7 @@ export default function CheckoutPage() {
                   <span>Shipping</span>
                   <span>FREE</span>
                 </div>
-                
+
                 <div className="flex justify-between font-bold text-lg pt-4 border-t border-gray-200">
                   <span className="uppercase tracking-widest">Total</span>
                   <span>₹{total}</span>
@@ -297,7 +378,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* DESKTOP ONLY: PLACE ORDER BUTTON */}
-              <button 
+              <button
                 form="checkout-form"
                 type="submit"
                 className="hidden lg:block w-full bg-black text-white py-5 text-sm tracking-widest uppercase hover:bg-gray-800 transition-colors mt-8"
@@ -305,7 +386,7 @@ export default function CheckoutPage() {
                 Place Order — ₹{total}
               </button>
             </div>
-            
+
           </div>
         </div>
       </div>
