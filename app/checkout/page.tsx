@@ -22,15 +22,8 @@ const loadScript = (src: string) => {
 export default function CheckoutPage() {
   const { cart, removeFromCart, updateQuantity } = useCart();
   const [isSuccess, setIsSuccess] = useState(false);
-
-  // ==========================================
-  // PAYMENT METHOD STATE
-  // ==========================================
   const [paymentMethod, setPaymentMethod] = useState("Cash on Delivery");
 
-  // ==========================================
-  // COUPON SYSTEM CONFIGURATION
-  // ==========================================
   const VALID_COUPONS: Record<string, number> = {
     "WELCOME10": 10,
     "OLFACTO20": 20,
@@ -54,27 +47,19 @@ export default function CheckoutPage() {
     }
   };
 
-  // ==========================================
-  // PRICING MATH
-  // ==========================================
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const discountAmount = Math.round((subtotal * appliedDiscountPercent) / 100);
   const shipping = 0;
   const total = subtotal - discountAmount + shipping;
 
-  // ==========================================
-  // 🚀 LIVE ORDER TRANSMISSION
-  // ==========================================
   const handlePlaceOrder = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    // 1. ADD YOUR WEB3FORMS KEY HERE
     formData.append("access_key", "1afbc8b0-4673-4df5-ab6f-641faf8d6fdc");
     formData.append("from_name", "Olfacto Checkout");
 
-    // 2. FORMAT THE CART ITEMS FOR THE EMAIL
     const orderSummary = cart.map(item =>
       `${item.quantity}x ${item.name} (${item.size}) - ₹${item.price * item.quantity}`
     ).join('\n');
@@ -95,42 +80,81 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Fetch the Order ID from your backend
+      // 1. Create the Order on the backend (Send amount in paise)
       const orderResponse = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: total })
+        body: JSON.stringify({ amount: total * 100 }) 
       });
       const orderData = await orderResponse.json();
 
-      // Configure Razorpay Window
+      if (!orderResponse.ok) {
+        alert(`Error initiating payment: ${orderData.error || 'Please try again.'}`);
+        return;
+      }
+
+      // 2. Configure Razorpay Window
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'YOUR_FUTURE_KEY_ID',
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount,
         currency: orderData.currency,
         name: "Olfacto Perfume",
         description: "Signature Scent Order",
-        image: "/logo.png", // Your logo in the popup
+        image: "/logo.png", 
         order_id: orderData.id,
         handler: async function (response: any) {
-          // THIS RUNS WHEN PAYMENT IS SUCCESSFUL
-          formData.append("subject", "✅ NEW PREPAID ORDER - OLFACTO PERFUME");
-          formData.append("Razorpay_Payment_ID", response.razorpay_payment_id);
+          try {
+            // 3. SECURE VERIFICATION STEP
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              })
+            });
 
-          await fetch("https://api.web3forms.com/submit", { method: "POST", body: formData });
+            const verifyData = await verifyRes.json();
 
-          setIsSuccess(true);
-          setTimeout(() => { window.location.href = "/"; }, 4000);
+            // 4. Finalize order ONLY if verification matches
+            if (verifyRes.ok && verifyData.success) {
+              formData.append("subject", "✅ NEW PREPAID ORDER - OLFACTO PERFUME");
+              formData.append("Razorpay_Payment_ID", response.razorpay_payment_id);
+              formData.append("Razorpay_Order_ID", response.razorpay_order_id);
+
+              await fetch("https://api.web3forms.com/submit", { method: "POST", body: formData });
+
+              setIsSuccess(true);
+              setTimeout(() => { window.location.href = "/"; }, 4000);
+            } else {
+              alert("Payment verification failed! Invalid Signature.");
+            }
+          } catch (err) {
+            console.error("Verification error:", err);
+            alert("Something went wrong verifying the payment.");
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            alert("Payment cancelled. You can try again when you're ready.");
+          }
         },
         prefill: {
           name: formData.get("First_Name") + " " + formData.get("Last_Name"),
           email: formData.get("Customer_Email") as string,
           contact: formData.get("Customer_Phone") as string,
         },
-        theme: { color: "#000000" } // Matches your dark luxury theme
+        theme: { color: "#000000" } 
       };
 
       const paymentObject = new (window as any).Razorpay(options);
+      
+      // Handle payment gateway failures
+      paymentObject.on('payment.failed', function (response: any) {
+        alert(`Payment Failed: ${response.error.description}`);
+      });
+      
       paymentObject.open();
 
       // ==========================================
@@ -237,7 +261,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* MOBILE ONLY: PLACE ORDER BUTTON */}
               <button
                 type="submit"
                 className="w-full bg-black text-white py-5 text-sm tracking-widest uppercase hover:bg-gray-800 transition-colors mt-8 lg:hidden"
@@ -247,9 +270,6 @@ export default function CheckoutPage() {
             </form>
           </div>
 
-          {/* ========================================== */}
-          {/* RIGHT COLUMN: ORDER SUMMARY & COUPON       */}
-          {/* ========================================== */}
           <div className="w-full lg:w-2/5 flex flex-col h-fit">
             <div className="bg-gray-50 p-6 sm:p-8">
               <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 border-b border-gray-200 pb-4">
@@ -303,6 +323,7 @@ export default function CheckoutPage() {
                               </button>
                             </div>
                             <button
+                              type="button"
                               onClick={() => removeFromCart(item.id, item.size)}
                               className="text-[9px] text-red-500 tracking-widest uppercase hover:text-black transition-colors underline"
                             >
@@ -312,12 +333,17 @@ export default function CheckoutPage() {
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end">
                         <p className="text-sm font-medium">₹{item.price * item.quantity}</p>
                         {originalPrice > item.price && (
-                          <p className="text-xs text-gray-400 line-through mt-0.5">
-                            ₹{originalPrice * item.quantity}
-                          </p>
+                          <>
+                            <p className="text-xs text-gray-400 line-through mt-0.5">
+                              ₹{originalPrice * item.quantity}
+                            </p>
+                            <p className="text-[9px] text-green-700 font-bold tracking-widest uppercase mt-1">
+                              {Math.round(((originalPrice - item.price) / originalPrice) * 100)}% OFF
+                            </p>
+                          </>
                         )}
                       </div>
                     </div>
@@ -325,7 +351,6 @@ export default function CheckoutPage() {
                 })}
               </div>
 
-              {/* COUPON SECTION */}
               <div className="border-t border-gray-200 pt-6 mb-6">
                 <form onSubmit={handleApplyCoupon} className="flex flex-col gap-2">
                   <div className="flex w-full">
@@ -352,7 +377,6 @@ export default function CheckoutPage() {
                 </form>
               </div>
 
-              {/* TOTALS */}
               <div className="border-t border-gray-200 pt-6 space-y-4 text-sm tracking-wide">
                 <div className="flex justify-between text-gray-500">
                   <span>Subtotal</span>
@@ -377,7 +401,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* DESKTOP ONLY: PLACE ORDER BUTTON */}
               <button
                 form="checkout-form"
                 type="submit"
