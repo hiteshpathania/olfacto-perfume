@@ -145,6 +145,16 @@ export default function ProductPage() {
               <span className="text-xs tracking-widest uppercase font-semibold w-32 mb-1 sm:mb-0">Longevity:</span>
               <span className="text-sm text-gray-600">{perfume.longevity}</span>
             </div>
+
+            {/* Fragrance Notes Section */}
+            <div className="flex flex-col sm:flex-row sm:items-start pt-2">
+              <span className="text-xs tracking-widest uppercase font-semibold w-32 mb-1 sm:mb-0">Notes:</span>
+              <div className="text-sm text-gray-600 flex flex-col gap-2">
+                <p><span className="font-medium text-black">Top Notes:</span> {perfume.notes?.top}</p>
+                <p><span className="font-medium text-black">Middle Notes:</span> {perfume.notes?.middle}</p>
+                <p><span className="font-medium text-black">Base Notes:</span> {perfume.notes?.base}</p>
+              </div>
+            </div>
           </div>
           
           {perfume.slug === "smoky-knight" && (
