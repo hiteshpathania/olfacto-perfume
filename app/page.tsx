@@ -19,6 +19,7 @@ export default function Home() {
           fill
           className="object-cover md:object-contain object-center"
           priority
+          unoptimized
           quality={100}
           sizes="100vw"
         />
@@ -30,8 +31,8 @@ export default function Home() {
         <div className="absolute bottom-8 md:bottom-8 left-1/2 -translate-x-1/2 z-10">
           <Link
             href="#collection"
-            className="bg-black text-white font-bold uppercase tracking-widest transition-all duration-300 border border-black hover: 
-               text-[10px] px-6 py-3    {/* Mobile sizes */}
+            className="inline-block whitespace-nowrap bg-black text-white font-bold uppercase tracking-widest transition-all duration-300 border border-black hover:
+               text-[10px] px-4 py-3    {/* Mobile sizes */}
                md:text-sm md:px-10 md:py-4  {/* Desktop sizes */}"
           >
             Explore Collection
