@@ -154,15 +154,15 @@ export default function Navbar() {
           `}</style>
           
           <div className="marquee-track">
-            <span className="px-4 md:px-8 whitespace-nowrap">10% OFF ON ALL PREPAID ORDERS</span>
+            <span className="px-4 md:px-8 whitespace-nowrap">5% OFF ON ALL PREPAID ORDERS</span>
             <span className="px-4 md:px-8 whitespace-nowrap">THE UNSEEN ACCESSORY</span>
-            <span className="px-4 md:px-8 whitespace-nowrap">10% OFF ON ALL PREPAID ORDERS</span>
+            <span className="px-4 md:px-8 whitespace-nowrap">5% OFF ON ALL PREPAID ORDERS</span>
             <span className="px-4 md:px-8 whitespace-nowrap">THE UNSEEN ACCESSORY</span>
           </div>
           <div className="marquee-track" aria-hidden="true">
-            <span className="px-4 md:px-8 whitespace-nowrap">10% OFF ON ALL PREPAID ORDERS</span>
+            <span className="px-4 md:px-8 whitespace-nowrap">5% OFF ON ALL PREPAID ORDERS</span>
             <span className="px-4 md:px-8 whitespace-nowrap">THE UNSEEN ACCESSORY</span>
-            <span className="px-4 md:px-8 whitespace-nowrap">10% OFF ON ALL PREPAID ORDERS</span>
+            <span className="px-4 md:px-8 whitespace-nowrap">5% OFF ON ALL PREPAID ORDERS</span>
             <span className="px-4 md:px-8 whitespace-nowrap">THE UNSEEN ACCESSORY</span>
           </div>
         </div>

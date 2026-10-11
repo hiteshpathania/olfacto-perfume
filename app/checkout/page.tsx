@@ -25,9 +25,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash on Delivery");
 
   const VALID_COUPONS: Record<string, number> = {
-    "WELCOME10": 10,
-    "OLFACTO20": 20,
-    "SQUAD50": 50,
+    "OLFACTO27": 5,
   };
 
   const [couponCode, setCouponCode] = useState("");
@@ -48,9 +46,16 @@ export default function CheckoutPage() {
   };
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const discountAmount = Math.round((subtotal * appliedDiscountPercent) / 100);
+  const couponDiscountAmount = Math.round((subtotal * appliedDiscountPercent) / 100);
+
+  // Calculate 5% discount ONLY if "Prepaid" is selected. 
+  // It applies to the amount after any coupons to prevent over-discounting.
+  const prepaidDiscountAmount = paymentMethod === "Prepaid"
+    ? Math.round((subtotal - couponDiscountAmount) * 0.05)
+    : 0;
+
   const shipping = 0;
-  const total = subtotal - discountAmount + shipping;
+  const total = subtotal - couponDiscountAmount - prepaidDiscountAmount + shipping;
 
   const handlePlaceOrder = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -66,8 +71,12 @@ export default function CheckoutPage() {
 
     formData.append("Order_Items", orderSummary);
     formData.append("Total_Amount", `₹${total}`);
+
     if (appliedDiscountPercent > 0) {
-      formData.append("Discount_Applied", `${appliedDiscountPercent}% OFF`);
+      formData.append("Coupon_Applied", `${appliedDiscountPercent}% OFF`);
+    }
+    if (prepaidDiscountAmount > 0) {
+      formData.append("Prepaid_Discount", `5% OFF (Saved ₹${prepaidDiscountAmount})`);
     }
 
     // ==========================================
@@ -84,7 +93,7 @@ export default function CheckoutPage() {
       const orderResponse = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: total * 100 }) 
+        body: JSON.stringify({ amount: total * 100 })
       });
       const orderData = await orderResponse.json();
 
@@ -100,7 +109,7 @@ export default function CheckoutPage() {
         currency: orderData.currency,
         name: "Olfacto Perfume",
         description: "Signature Scent Order",
-        image: "/logo.png", 
+        image: "/logo.png",
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
@@ -145,16 +154,16 @@ export default function CheckoutPage() {
           email: formData.get("Customer_Email") as string,
           contact: formData.get("Customer_Phone") as string,
         },
-        theme: { color: "#000000" } 
+        theme: { color: "#000000" }
       };
 
       const paymentObject = new (window as any).Razorpay(options);
-      
+
       // Handle payment gateway failures
       paymentObject.on('payment.failed', function (response: any) {
         alert(`Payment Failed: ${response.error.description}`);
       });
-      
+
       paymentObject.open();
 
       // ==========================================
@@ -257,7 +266,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setPaymentMethod("Prepaid")}>
                   <input type="radio" id="prepaid" name="Payment_Method" value="Prepaid" checked={paymentMethod === "Prepaid"} onChange={() => setPaymentMethod("Prepaid")} className="accent-black w-4 h-4 cursor-pointer" />
-                  <label htmlFor="prepaid" className="text-sm tracking-wide uppercase cursor-pointer">Online Payment (Razorpay)</label>
+                  <label htmlFor="prepaid" className="text-sm tracking-wide uppercase cursor-pointer">Online Payment (Save 5%)</label>
                 </div>
               </div>
 
@@ -382,11 +391,17 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>₹{subtotal}</span>
                 </div>
-
-                {discountAmount > 0 && (
+                {appliedDiscountPercent > 0 && (
                   <div className="flex justify-between text-green-700 font-semibold">
-                    <span className="uppercase tracking-widest">Discount ({appliedDiscountPercent}%)</span>
-                    <span>- ₹{discountAmount}</span>
+                    <span className="uppercase tracking-widest">Coupon ({appliedDiscountPercent}%)</span>
+                    <span>- ₹{couponDiscountAmount}</span>
+                  </div>
+                )}
+
+                {prepaidDiscountAmount > 0 && (
+                  <div className="flex justify-between text-green-700 font-semibold">
+                    <span className="uppercase tracking-widest">Prepaid Discount (5%)</span>
+                    <span>- ₹{prepaidDiscountAmount}</span>
                   </div>
                 )}
 
